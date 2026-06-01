@@ -11,7 +11,7 @@
 
 语言 / Language: [中文](./README.md) | [English](./README.en.md)
 
-qwen2API 用于将通义千问（chat.qwen.ai）网页版能力转换为 OpenAI、Anthropic Claude 与 Gemini 兼容接口。项目后端基于 FastAPI，前端基于 React + Vite，内置管理台、账号池、工具调用解析、图片生成链路与多种部署方式。
+qwen2api 用于将通义千问（chat.qwen.ai）网页版能力转换为 OpenAI、Anthropic Claude 与 Gemini 兼容接口。项目后端基于 FastAPI，前端基于 React + Vite，内置管理台、账号池、工具调用解析、图片生成链路与多种部署方式。
 
 ---
 
@@ -360,6 +360,46 @@ curl http://127.0.0.1:7860/healthz
 docker compose pull
 docker compose up -d
 ```
+
+---
+
+## 跨平台（amd64/arm64）部署说明
+
+你在 Mac（Apple Silicon, arm64）上 `docker build` 默认会产出 `linux/arm64` 镜像；
+如果把这个单架构镜像推到仓库，Linux x86_64 服务器（`linux/amd64`）拉取后会报：
+
+`The requested image's platform (linux/arm64/v8) does not match the detected host platform (linux/amd64/...)`
+
+正确做法是发布 **多架构镜像（manifest list）**，同时包含 `linux/amd64` 与 `linux/arm64`。
+
+### 方案 A：用 GitHub Actions 自动发布多架构镜像（推荐）
+
+本仓库已在 [docker-publish.yml](file:///Users/hongyan/work/workspace/todo/ai/qwen2API/.github/workflows/docker-publish.yml) 配置 `platforms: linux/amd64,linux/arm64`。
+你只需要把修复推到你自己的仓库并设置 DockerHub secrets，然后在服务器端执行：
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+### 方案 B：本地 buildx 推多架构镜像（适合无 CI 的场景）
+
+```bash
+# 1) 登录镜像仓库（DockerHub/ACR/GHCR 任意）
+docker login
+
+# 2) 构建并推送多架构镜像
+./scripts/buildx-push.sh <你的仓库名>/qwen2api:<tag>
+```
+
+服务器端仍然只需要 `docker compose pull && docker compose up -d`。
+
+### 关于 docker-compose 文件
+
+生产部署（Linux/Windows）建议使用拉镜像模式：
+
+- `docker-compose.yml`：默认 `image: yujunzhixue/qwen2api:latest`（或通过 `QWEN2API_IMAGE` 覆盖）
+- `docker-compose.build.yml`：仅用于本地从源码构建（开发/调试）
 
 ---
 

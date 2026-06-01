@@ -1,6 +1,6 @@
 services:
   qwen2api:
-    image: yujunzhixue/qwen2api:latest
+    image: ${QWEN2API_IMAGE:-yujunzhixue/qwen2api:latest}
     container_name: qwen2api
     restart: unless-stopped
     init: true

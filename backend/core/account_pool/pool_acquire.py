@@ -25,6 +25,23 @@ def _jitter_seconds() -> float:
 class AccountAcquireMixin:
     """账号获取逻辑混入类"""
 
+    async def _remove_waiter(self, waiter: asyncio.Event) -> None:
+        """
+        从等待队列中移除 waiter（若仍在队列中）。
+
+        acquire_wait* 可能因超时返回；若不清理 waiter，队列长度会持续增长，
+        在 max_queue_size 较小时会出现“队列假满”并拒绝后续请求。
+        """
+        async with self._lock:
+            queue = getattr(self._waiters_queue, "_queue", None)
+            if queue is None:
+                return
+            try:
+                queue.remove(waiter)
+            except ValueError:
+                # 已被 release() 的 notify 弹出，属于正常竞争场景
+                pass
+
     async def acquire(self, exclude: Optional[set] = None) -> Optional["Account"]:
         """
         立即获取账号（不等待）
@@ -137,6 +154,8 @@ class AccountAcquireMixin:
                 await asyncio.wait_for(waiter.wait(), timeout=wait_timeout)
             except asyncio.TimeoutError:
                 pass
+            finally:
+                await self._remove_waiter(waiter)
 
     async def acquire_wait_preferred(
         self, preferred_email: Optional[str] = None, timeout: float = 60, exclude: Optional[set] = None
@@ -166,6 +185,8 @@ class AccountAcquireMixin:
                 await asyncio.wait_for(waiter.wait(), timeout=min(remaining, 0.5))
             except asyncio.TimeoutError:
                 pass
+            finally:
+                await self._remove_waiter(waiter)
 
     def release(self, acc: "Account"):
         """
